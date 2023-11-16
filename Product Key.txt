@@ -1,0 +1,1146 @@
+1) Chat Application TCP
+
+Client:
+
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
+#include <cstdio>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+int main() {
+    int clientSocket;
+    struct sockaddr_in serverAddr;
+
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == -1) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(2000);
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(clientSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Error connecting to server");
+        close(clientSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    std::cout << "Connected to server" << std::endl;
+
+    char buffer[1024];
+    while (true) {
+        std::string message;
+        std::cout << "Client : ";
+        std::getline(std::cin, message);
+        send(clientSocket, message.c_str(), message.size(), 0);
+
+        memset(buffer, 0, sizeof(buffer));
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesReceived == -1) {
+            perror("Error receiving data");
+            close(clientSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        std::cout << "Server : " << buffer << std::endl;
+
+        if (message == "BYE") {
+            break;
+        }
+    }
+
+    close(clientSocket);
+
+    return 0;
+}
+
+
+Server:
+
+
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+int main() {
+    int serverSocket, clientSocket;
+    struct sockaddr_in serverAddr, clientAddr;
+    socklen_t clientAddrLen = sizeof(clientAddr);
+
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(2000);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Error binding socket");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(serverSocket, 5) == -1) {
+        perror("Error listening");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    std::cout << "Server listening on port 2000..." << std::endl;
+
+    clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
+    if (clientSocket == -1) {
+        perror("Error accepting client connection");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[1024];
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesReceived == -1) {
+            perror("Error receiving data");
+            close(clientSocket);
+            close(serverSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        std::cout << "Client : " << buffer << std::endl;
+        std::cout << "Server : ";
+        std::string response;
+        std::getline(std::cin, response);
+        send(clientSocket, response.c_str(), response.size(), 0);
+
+        if (response == "END") {
+            break;
+        }
+    }
+
+    close(clientSocket);
+    close(serverSocket);
+
+    return 0;
+}
+
+
+2) Chat Application UDP
+
+#include <iostream>
+#include <cstdlib>
+#include <cstdio.h>
+#include <cstring>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+int main() {
+    int clientSocket;
+    struct sockaddr_in serverAddr;
+
+    clientSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (clientSocket == -1) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(2000);
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    std::string message;
+    while (true) {
+        std::cout << "You: ";
+        std::getline(std::cin, message);
+
+        sendto(clientSocket, message.c_str(), message.size(), 0, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+    }
+
+    close(clientSocket);
+
+    return 0;
+}
+
+
+Server:
+
+
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+int main() {
+    int serverSocket;
+    struct sockaddr_in serverAddr, clientAddr;
+    socklen_t clientAddrLen = sizeof(clientAddr);
+
+    serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (serverSocket == -1) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(2000);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Error binding socket");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[1024];
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytesReceived = recvfrom(serverSocket, buffer, sizeof(buffer), 0, (struct sockaddr*)&clientAddr, &clientAddrLen);
+        if (bytesReceived == -1) {
+            perror("Error receiving data");
+            close(serverSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        std::cout << "Client (" << inet_ntoa(clientAddr.sin_addr) << ":" << ntohs(clientAddr.sin_port) << ") : " << buffer << std::endl;
+    }
+
+    close(serverSocket);
+
+    return 0;
+}
+
+
+3) Echo Server
+
+Server:
+
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
+#include <cerrno>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+using namespace std;
+
+const int PORT = 8080;
+const int BUFFER_SIZE = 1024;
+
+int main() {
+    int serverSocket, clientSocket;
+    struct sockaddr_in serverAddr, clientAddr;
+    socklen_t clientAddrLen = sizeof(clientAddr);
+
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
+
+    if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Error binding");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(serverSocket, 5) == -1) {
+        perror("Error listening");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    cout << "Server listening on port " << PORT << endl;
+
+    while (1) {
+        clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        if (clientSocket == -1) {
+            perror("Error accepting connection");
+            close(serverSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        char buffer[BUFFER_SIZE];
+        ssize_t bytesRead;
+
+        while ((bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
+            buffer[bytesRead] = '\0';
+            cout << "Client: " << buffer << endl;
+
+            if (strcmp(buffer, "Exit") == 0) {
+                cout << "Client has terminated the conversation." << endl;
+                break;
+            }
+
+            send(clientSocket, buffer, bytesRead, 0);
+        }
+
+        if (bytesRead == -1) {
+            perror("Error receiving data");
+            close(clientSocket);
+            exit(EXIT_FAILURE);
+        }
+        close(clientSocket);
+    }
+    close(serverSocket);
+    return 0;
+}
+
+Client:
+
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
+#include <cerrno>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+using namespace std;
+
+const char* SERVER_IP = "127.0.0.1";
+const int SERVER_PORT = 18080;
+const int BUFFER_SIZE = 1024;
+
+int main() {
+    int clientSocket;
+    struct sockaddr_in serverAddr;
+
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == -1) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(SERVER_PORT);
+
+    if (inet_pton(AF_INET, SERVER_IP, &(serverAddr.sin_addr)) <= 0) {
+        perror("Error converting IP address");
+        close(clientSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Error connecting to server");
+        close(clientSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    char message[BUFFER_SIZE];
+    ssize_t bytesRead;
+
+    while (1) {
+        cout << "Enter a message to send to the server (type 'Exit' to end the conversation): ";
+        cin.getline(message, BUFFER_SIZE);
+
+        send(clientSocket, message, strlen(message), 0);
+        if (strcmp(message, "Exit") == 0) {
+            cout << "You have terminated the conversation." << endl;
+            break;
+        }
+        bytesRead = recv(clientSocket, message, sizeof(message), 0);
+
+        if (bytesRead == -1) {
+            perror("Error receiving data");
+            close(clientSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        message[bytesRead] = '\0';
+        cout << "Server: " << message << endl;
+    }
+
+    close(clientSocket);
+    return 0;
+}
+
+
+4) HTTP Server
+
+import java.net.*;
+import java.io.*;
+import java.util.Scanner;
+class http_server {
+      public static void main(String[] args) throws Exception {
+System.out.println("Enter port : ");
+ 	Scanner dop=new Scanner(System.in);
+ 	int port=dop.nextInt();
+ServerSocket serverSocket = new ServerSocket(port);
+System.err.println("Local Host Server running at : " + port);
+ while (true) { 
+ 		Socket clientSocket = serverSocket.accept();
+System.err.println("Server connected!");
+BufferedReader in = new BufferedReader(new 
+InputStreamReader(clientSocket.getInputStream()));
+BufferedWriter out = new BufferedWriter(new 
+OutputStreamWriter(clientSocket.getOutputStream()));
+ 		String s;
+ 		while ((s = in.readLine()) != null) {
+System.out.println(s);
+ if (s.isEmpty()) {
+ 			break;
+ 		}
+ 	}
+out.write("HTTP/1.0 200 OK\r\n");
+out.write("Server: Apache/0.8.4\r\n");
+out.write("Content-Type: text/html\r\n");
+out.write("Content-Length: 59\r\n");
+out.write("\r\n");
+out.write("<TITLE>HTTP Server</TITLE>");
+out.write("<P>Hello, Shyamala here !!</P>");
+out.write("<P>"+s+"</P>");
+System.err.println("Server Connection Closed\n");
+out.close();
+in.close();
+clientSocket.close();
+ }}}
+
+
+5) FTP
+
+Server:
+
+import java.io.*;
+import java.net.*;
+@SuppressWarnings("deprecation")
+class FTPServer
+{   public static void main(String[] args) throws Exception
+{ ServerSocket Sock=new ServerSocket(Integer.parseInt(args[0]));
+Socket s=Sock.accept();
+DataInputStream cin=new DataInputStream(s.getInputStream());
+DataOutputStream cout=new DataOutputStream(s.getOutputStream());
+FTPServer ftp=new FTPServer();
+while(true)
+{ String option=cin.readUTF();
+if(option.equals("SEND")){
+System.out.println("SEND Command Received..");
+ftp.sendfile(s);
+}
+else if(option.equals("RECEIVE")){
+System.out.println("RECEIVE Command Received..");
+ftp.receivefile(s);
+}}}
+
+public void sendfile(Socket s) throws Exception
+{
+Socket ssock=s;
+DataInputStream cin=new DataInputStream(ssock.getInputStream());
+DataOutputStream cout=new DataOutputStream(ssock.getOutputStream());
+String filename=cin.readUTF();
+System.out.println("Reading File "+filename);
+File f=new File(filename);
+FileInputStream fin=new FileInputStream(f);
+int ch;
+do
+{
+ch=fin.read();
+cout.writeUTF(Integer.toString(ch));
+}while(ch!=-1);
+fin.close();
+System.out.println("File Sent");
+}
+public void receivefile(Socket s) throws Exception
+{
+Socket ssock=s;
+DataInputStream cin=new DataInputStream(ssock.getInputStream());
+DataOutputStream cout=new DataOutputStream(ssock.getOutputStream());
+String filename=cin.readUTF();
+System.out.println("Receiving File "+filename);
+File f=new File(filename);
+FileOutputStream fout=new FileOutputStream(f);
+int ch;
+while((ch=Integer.parseInt(cin.readUTF()))!=-1)
+{fout.write(ch);
+}
+System.out.println("Received File...");
+fout.close();
+}}
+
+
+Client:
+
+import java.io.*;
+import java.net.*;
+
+@SuppressWarnings("deprecation")
+
+class FTPClient
+{public static void main(String[] args) throws Exception
+{String option;
+DataInputStream in=new DataInputStream(System.in);
+Socket s=new Socket("localhost",Integer.parseInt(args[0]));
+System.out.println("MENU");
+System.out.println("1.SEND");
+System.out.println("2.RECEIVE");
+FTPClient ftp=new FTPClient();
+while(true)
+{
+option=in.readLine();
+if(option.equals("1")){
+System.out.println("SEND Command Received..");
+ftp.sendfile(s);
+}
+
+else if(option.equals("2")){
+System.out.println("RECEIVE Command Received..");
+ftp.receivefile(s);
+}}}
+
+public void sendfile(Socket s) throws Exception
+{Socket ssock=s;
+DataInputStream in=new DataInputStream(System.in);
+DataInputStream cin=new DataInputStream(ssock.getInputStream());
+DataOutputStream cout=new DataOutputStream(ssock.getOutputStream());
+cout.writeUTF("RECEIVE");
+String filename=in.readLine();
+System.out.println("Reading File "+filename);
+cout.writeUTF(filename);
+File f=new File(filename);
+FileInputStream fin=new FileInputStream(f);
+int ch;
+do
+{ch=fin.read();
+cout.writeUTF(String.valueOf(ch));
+}while(ch!=-1);
+fin.close();
+System.out.println("File Sent");
+}
+public void receivefile(Socket s) throws Exception
+{
+Socket ssock=s;
+DataInputStream in=new DataInputStream(System.in);
+DataInputStream cin=new DataInputStream(ssock.getInputStream());
+DataOutputStream cout=new DataOutputStream(ssock.getOutputStream());
+
+cout.writeUTF("SEND");
+
+String filename=in.readLine();
+cout.writeUTF(filename);
+System.out.println("Receiving File "+filename);
+File f=new File(filename);
+FileOutputStream fout=new FileOutputStream(f);
+int ch;
+do
+{ch=Integer.parseInt(cin.readUTF());
+if(ch!=-1) fout.write(ch);
+}while(ch!=-1);
+System.out.println("Received File...");
+fout.close();
+}}
+
+
+6) Stop and wait
+
+Sender:
+
+import java.io.*;
+import java.net.*;
+
+public class Sender {
+    Socket sender;
+    ObjectOutputStream out;
+    ObjectInputStream in;
+    String packet, ack, msg, str;
+    int n, i = 0, sequence = 0;
+
+    Sender() {
+    }
+
+    public void run() {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in);
+            System.out.println("Waiting for Connection....");
+            sender = new Socket("localhost", 2005);
+            sequence = 0;
+            out = new ObjectOutputStream(sender.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(sender.getInputStream());
+            str = (String) in.readObject();
+            System.out.println("receiver > " + str);
+            System.out.println("Enter the data to send....");
+            packet = br.readLine();
+            n = packet.length();
+            do {
+                try {
+                    if (i < n) {
+                        msg = String.valueOf(sequence);
+                        msg = msg.concat(packet.substring(i, i + 1));
+                    } else if (i == n) {
+                        msg = "end";
+                        out.writeObject(msg);
+                        break;
+                    }
+                    out.writeObject(msg);
+                    sequence = (sequence == 0) ? 1 : 0;
+                    out.flush();
+                    System.out.println("data sent> " + msg);
+                    ack = (String) in.readObject();
+                    System.out.println("waiting for ack.....\n\n");
+                    if (ack.equals(String.valueOf(sequence))) {
+                        i++;
+                        System.out.println("receiver > packet received\n\n");
+                    } else {
+                        System.out.println("Time out resending data....\n\n");
+                        sequence = (sequence == 0) ? 1 : 0;
+                    }
+                } catch (Exception e) {
+                }
+            } while (i < n + 1);
+            System.out.println("All data sent. Exiting.");
+        } catch (Exception e) {
+        } finally {
+            try {
+                in.close();
+                out.close();
+                sender.close();
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        Sender s = new Sender();
+        s.run();
+    }
+}
+
+
+Receiver:
+
+import java.io.*;
+import java.net.*;
+
+public class Receiver {
+    ServerSocket receiver;
+    Socket connection = null;
+    ObjectOutputStream out;
+    ObjectInputStream in;
+    String packet, ack, data = "";
+    int i = 0, sequence = 0;
+
+    Receiver() {
+    }
+
+    public void run() {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            receiver = new ServerSocket(2005, 10);
+            System.out.println("Waiting for connection...");
+            connection = receiver.accept();
+            sequence = 0;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+            System.out.println("Connection established:");
+            out = new ObjectOutputStream(connection.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(connection.getInputStream());
+            out.writeObject("connected.");
+            do {
+                try {
+                    packet = (String) in.readObject();
+                    if (Integer.valueOf(packet.substring(0, 1)) == sequence) {
+                        data += packet.substring(1);
+                        sequence = (sequence == 0) ? 1 : 0;
+                        System.out.println("\n\nReceiver > " + packet);
+                    } else {
+                        System.out.println("\n\nReceiver > " + packet + " duplicate data");
+                    }
+                    if (i < 3) {
+                        out.writeObject(String.valueOf(sequence));
+                        i++;
+                    } else {
+                        out.writeObject(String.valueOf((sequence + 1) % 2));
+                        i = 0;
+                    }
+                } catch (Exception e) {
+                }
+            } while (!packet.equals("end"));
+            System.out.println("Data received: " + data);
+            out.writeObject("connection ended.");
+        } catch (Exception e) {
+        } finally {
+            try {
+                in.close();
+                out.close();
+                receiver.close();
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        Receiver s = new Receiver();
+        while (true) {
+            s.run();
+        }
+    }}
+
+
+7) Sliding Window- Go Back N Protocol
+
+Receiver:
+
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+public class GoBackNServer {
+    public static void main(String[] args) throws Exception {
+        ServerSocket server = new ServerSocket(55004);
+        System.out.println("Server established");
+        Socket client = server.accept();
+        ObjectOutputStream oos = new ObjectOutputStream(client.getOutputStream());
+        ObjectInputStream ois = new ObjectInputStream(client.getInputStream());
+        System.out.println("Client is now connected");
+        int x = (Integer) ois.readObject();
+        int k = (Integer) ois.readObject();
+        int j = 0;
+        int i = (Integer) ois.readObject();
+        boolean flag = true;
+        Random r = new Random();
+        int mod = r.nextInt(6);
+        
+        while (mod == 1 || mod == 0) {
+            mod = r.nextInt(6);
+        }
+        
+        while (true) {
+            int c = k;
+            for (int h = 0; h < x; h++) {
+                System.out.print("|" + c + "|");
+                c = (c + 1) % x;
+            }
+            System.out.println();
+            System.out.println();
+            
+            if (k == j) {
+                System.out.println("Frame " + k + " received" + "\n" + "Data: " + i);
+                j++;
+                System.out.println();
+            } else {
+                System.out.println(
+                    "Frames received not in the correct order" +
+                    "\n" +
+                    "Expected frame: " + j +
+                    "\n" +
+                    "Received frame no: " + k
+                );
+                System.out.println();
+            }
+            
+            if (j % mod == 0 && flag) {
+                System.out.println("Error found. Acknowledgment not sent. ");
+                flag = !flag;
+                j--;
+            } else if (k == j - 1) {
+                oos.writeObject(k);
+                System.out.println("Acknowledgment sent");
+            }
+            
+            System.out.println();
+            
+            if (j % mod == 0) {
+                flag = !flag;
+            }
+            
+            k = (Integer) ois.readObject();
+            if (k == -1) break;
+            i = (Integer) ois.readObject();
+        }
+        
+        System.out.println("Client finished sending data. Exiting");
+        oos.writeObject(-1);
+    }
+}
+
+Sender:
+
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+public class GoBackNClient {
+    public static void main(String args[]) throws Exception {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in);
+        System.out.print("Enter the value of m : ");
+        int m = Integer.parseInt(br.readLine());
+        int x = (int) ((Math.pow(2, m)) - 1);
+        System.out.print("Enter no. of frames to be sent: ");
+        int count = Integer.parseInt(br.readLine());
+        int data[] = new int[count];
+        int h = 0;
+
+        for (int i = 0; i < count; i++) {
+            System.out.print("Enter data for frame no " + h + " => ");
+            data[i] = Integer.parseInt(br.readLine());
+            h = (h + 1) % x;
+        }
+
+        Socket client = new Socket("localhost", 55004);
+        ObjectInputStream ois = new ObjectInputStream(client.getInputStream());
+        ObjectOutputStream oos = new ObjectOutputStream(client.getOutputStream());
+        System.out.println("Connected with server");
+        boolean flag = false;
+        GoBackNListener listener = new GoBackNListener(ois, x);
+        listener.t.start();
+        int start = 0;
+        h = 0;
+        oos.writeObject(x);
+
+        do {
+            int c = h;
+            for (int i = h; i < count; i++) {
+                System.out.print("|" + c + "|");
+                c = (c + 1) % x;
+            }
+            System.out.println();
+            System.out.println();
+            h = start;
+
+            for (int i = start; i < count; i++) {
+                System.out.println("Sending frame:" + h);
+                h = (h + 1) % x;
+                System.out.println();
+                oos.writeObject(i);
+                oos.writeObject(data[i]);
+                Thread.sleep(100);
+            }
+            
+            listener.t.join(4000);
+
+            if (listener.reply != count - 1) {
+                System.out.println(
+                    "No reply from server in 4 seconds. Resending data from frame no " +
+                    (listener.reply + 1)
+                );
+                System.out.println(
+                    "Listener.reply value: " + listener.reply + "\nx-1: " + (x - 1)
+                );
+                System.out.println();
+                start = listener.reply + 1;
+                flag = false;
+            } else {
+                System.out.println("All elements sent successfully. Exiting");
+                flag = true;
+            }
+        } while (!flag);
+
+        oos.writeObject(-1);
+    }
+}
+
+class GoBackNListener implements Runnable {
+    Thread t;
+    ObjectInputStream ois;
+    int reply, x;
+
+    GoBackNListener(ObjectInputStream o, int i) {
+        t = new Thread(this);
+        ois = o;
+        reply = -2;
+        x = i;
+    }
+
+    @Override
+    public void run() {
+        try {
+            int temp = 0;
+            while (reply != -1) {
+                reply = (Integer) ois.readObject();
+                if (reply != -1 && reply != temp + 1) {
+                    reply = temp;
+                }
+                if (reply != -1) {
+                    temp = reply;
+                    System.out.println(
+                        "Acknowledgment of frame no " + (reply % x) + " received."
+                    );
+                    System.out.println();
+                }
+            }
+            reply = temp;
+        } catch (Exception e) {
+            System.out.println("Exception => " + e);
+        }
+    }
+}
+
+
+8) Sliding Window -  Selective Repeat
+
+Sender:
+
+import java.net.*;
+import java.io.*;
+import java.util.Random;
+
+public class SRc {
+    static Socket connection;
+
+    public static void main(String a[]) {
+        try {
+            int v[] = new int[10];
+            int n = 0;
+            Random rands = new Random();
+            int rand = 0;
+            InetAddress addr = InetAddress.getLocalHost(); // Use getLocalHost() to get the localhost address
+            System.out.println(addr);
+            connection = new Socket(addr, 8011);
+            DataOutputStream out = new DataOutputStream(connection.getOutputStream());
+            DataInputStream in = new DataInputStream(connection.getInputStream());
+            int p = in.read();
+            System.out.println("No of frame is: " + p);
+
+            for (int i = 0; i < p; i++) {
+                v[i] = in.read();
+                System.out.println(v[i]);
+            }
+
+            rand = rands.nextInt(p); // FRAME NO. IS RANDOMLY GENERATED
+            v[rand] = -1;
+
+            for (int i = 0; i < p; i++) {
+                System.out.println("Received frame is: " + v[i]);
+            }
+
+            for (int i = 0; i < p; i++) {
+                if (v[i] == -1) {
+                    System.out.println("Request to retransmit from packet no " + (i + 1) + " again!!");
+                    n = i;
+                    out.write(n);
+                    out.flush();
+                }
+            }
+            System.out.println();
+            v[n] = in.read();
+            System.out.println("Received frame is: " + v[n]);
+            System.out.println("Quitting");
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+}
+
+
+Receiver:
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+
+public class SRs {
+    static ServerSocket serverSocket;
+    static DataInputStream dis;
+    static DataOutputStream dos;
+
+    public static void main(String[] args) {
+        try {
+            int a[] = { 30, 40, 50, 60, 70, 80, 90, 100 };
+            serverSocket = new ServerSocket(8011);
+            System.out.println("Waiting for connection");
+            Socket client = serverSocket.accept();
+            dis = new DataInputStream(client.getInputStream());
+            dos = new DataOutputStream(client.getOutputStream());
+
+            System.out.println("The number of packets sent is: " + a.length);
+            int y = a.length;
+            dos.write(y);
+            dos.flush();
+
+            for (int i = 0; i < a.length; i++) {
+                dos.write(a[i]);
+                dos.flush();
+            }
+
+            int k = dis.read();
+            dos.write(a[k]);
+            dos.flush();
+        } catch (IOException e) {
+            System.out.println(e);
+        } finally {
+            try {
+                if (dis != null) {
+                    dis.close();
+                }
+                if (dos != null) {
+                    dos.close();
+                }
+                if (serverSocket != null) {
+                    serverSocket.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+9) DVR
+
+
+import java.io.*;
+import java.util.Scanner;
+ 
+public class DVR
+{
+    static int graph[][];
+    static int via[][];
+    static int rt[][];
+    static int v;
+    static int e;
+ 
+    public static void main(String args[]) throws IOException
+    {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+ 
+        System.out.println("Please enter the number of Vertices: ");
+        v = Integer.parseInt(br.readLine());
+ 
+        System.out.println("Please enter the number of Edges: ");
+        e = Integer.parseInt(br.readLine());
+ 
+        graph = new int[v][v];
+        via = new int[v][v];
+        rt = new int[v][v];
+        for(int i = 0; i < v; i++)
+            for(int j = 0; j < v; j++)
+            {
+                if(i == j)
+                    graph[i][j] = 0;
+                else
+                    graph[i][j] = 9999;
+            }
+ 
+        for(int i = 0; i < e; i++)
+        {
+            System.out.println("Please enter data for Edge " + (i + 1) + ":");
+            System.out.print("Source: ");
+            int s = Integer.parseInt(br.readLine());
+            s--;
+            System.out.print("Destination: ");
+            int d = Integer.parseInt(br.readLine());
+            d--;
+            System.out.print("Cost: ");
+            int c = Integer.parseInt(br.readLine());
+            graph[s][d] = c;
+            graph[d][s] = c;
+        }
+ 
+        dvr_calc_disp("The Routing Tables are: ");
+ 
+        Scanner in=new Scanner(System.in);
+        System.out.print("Enter source: ");
+        int so = in.nextInt();
+        System.out.print("Enter Destination: ");
+        int de = in.nextInt();
+        de--; so--;
+        int j = so;
+        System.out.print("Path: ");
+        System.out.print(so+1);
+        while(j!=de){
+            System.out.print("->"+(via[j][de]+1));
+            j = via[j][de];
+        }
+        System.out.println();
+ 
+ 
+    }
+ 
+    static void dvr_calc_disp(String message)
+    {
+        System.out.println();
+        init_tables();
+        update_tables();
+        System.out.println(message);
+        print_tables();
+        System.out.println();
+    }
+ 
+    static void update_table(int source)
+    {
+        for(int i = 0; i < v; i++)
+        {
+            if(graph[source][i] != 9999)
+            {
+                int dist = graph[source][i];
+                for(int j = 0; j < v; j++)
+                {
+                    int inter_dist = rt[i][j];
+                    if(via[i][j] == source)
+                        inter_dist = 9999;
+                    if(dist + inter_dist < rt[source][j])
+                    {
+                        rt[source][j] = dist + inter_dist;
+                        via[source][j] = i;
+                    }
+                }
+            }
+        }
+    }
+ 
+    static void update_tables()
+    {
+        int k = 0;
+        for(int i = 0; i < 4*v; i++)
+        {
+            update_table(k);
+            k++;
+            if(k == v)
+                k = 0;
+        }
+    }
+ 
+    static void init_tables()
+    {
+        for(int i = 0; i < v; i++)
+        {
+            for(int j = 0; j < v; j++)
+            {
+                if(i == j)
+                {
+                    rt[i][j] = 0;
+                    via[i][j] = i;
+                }
+                else
+                {
+                    rt[i][j] = 9999;
+                    via[i][j] = 100;
+                }
+            }
+        }
+    }
+ 
+    static void print_tables()
+    {
+        for(int i = 0; i < v; i++)
+        {
+            for(int j = 0; j < v; j++)
+            {
+                System.out.print("Dist: " + rt[i][j]+"  ");
+            }
+            System.out.println();
+        }
+    }
+ 
+}
+
